@@ -284,6 +284,7 @@
   <a href="#indices">主要指数</a>
   <a href="#customers">顧客株価</a>
   <a href="#stock-topics">株トピックス</a>
+  <a href="./weekly-report.html" style="background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600;">📊 週次レポート</a>
 </nav>
 
 <div class="update-info" id="lastUpdate" style="padding: 0 20px;"></div>
@@ -568,6 +569,54 @@
     }
   }
 
+  // 週次レポート用: セクションID → カテゴリキー
+  const SECTION_TO_CATEGORY = {
+    'general': 'general',
+    'manufacturing': 'manufacturing',
+    'industry': 'industry',
+    'stock-topics': 'market'
+  };
+  const SNAPSHOT_KEY = 'newsSnapshots_v1';
+
+  function saveToSnapshot(sectionId, items) {
+    const cat = SECTION_TO_CATEGORY[sectionId];
+    if (!cat) return;
+    try {
+      const snaps = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '{}');
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      if (!snaps[today]) {
+        snaps[today] = { timestamp: now.getTime(), items: {} };
+      }
+      snaps[today].timestamp = now.getTime();
+      // 既存の今日のデータとマージ（link で重複排除）
+      const existing = snaps[today].items[cat] || [];
+      const existingLinks = new Set(existing.map(x => x.link));
+      const merged = existing.slice();
+      for (const it of items) {
+        if (it.link && !existingLinks.has(it.link)) {
+          merged.push({
+            title: it.title,
+            link: it.link,
+            pubDate: it.pubDate,
+            source: it.source,
+            pubTime: new Date(it.pubDate || 0).getTime()
+          });
+          existingLinks.add(it.link);
+        }
+      }
+      snaps[today].items[cat] = merged;
+      // 8日以上前のスナップショット削除
+      const cutoff = now.getTime() - 8 * 24 * 60 * 60 * 1000;
+      for (const d of Object.keys(snaps)) {
+        if (snaps[d].timestamp < cutoff) delete snaps[d];
+      }
+      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snaps));
+    } catch (e) {
+      console.warn('snapshot save failed:', e.message);
+    }
+  }
+
   async function loadHeadlines(container) {
     let feeds;
     try {
@@ -590,6 +639,10 @@
       const db = new Date(b.pubDate).getTime() || 0;
       return db - da;
     });
+
+    // 週次レポート用に全件を保存（limit 適用前）
+    const sectionId = container.closest('section')?.id;
+    if (sectionId) saveToSnapshot(sectionId, items);
 
     items = items.slice(0, limit);
 
