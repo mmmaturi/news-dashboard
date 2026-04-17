@@ -204,6 +204,21 @@
     margin-bottom: 4px;
     padding: 0 4px;
   }
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  @media (min-width: 900px) {
+    .chart-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+  .stock-chart-img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 4px;
+    background: #ffffff;
+  }
   footer {
     text-align: center;
     padding: 24px 16px;
@@ -279,13 +294,17 @@
   <section id="general" class="card">
     <h2><span class="icon">🌐</span>主要ニュース<span class="tag">経済・政治・国際</span></h2>
 
-    <div class="section-label">📢 最新ヘッドライン（自動取得）</div>
+    <div class="section-label">📢 最新ヘッドライン（自動取得・政治/経済/国際のみ）</div>
     <div class="headlines" data-feeds='[
-      {"url": "https://www.nhk.or.jp/rss/news/cat0.xml", "source": "NHK"},
-      {"url": "https://news.yahoo.co.jp/rss/topics/top-picks.xml", "source": "Yahoo!"},
-      {"url": "https://news.yahoo.co.jp/rss/topics/business.xml", "source": "経済"},
-      {"url": "https://news.yahoo.co.jp/rss/topics/world.xml", "source": "国際"}
-    ]' data-limit="10">
+      {"url": "https://www.nhk.or.jp/rss/news/cat4.xml", "source": "NHK政治"},
+      {"url": "https://www.nhk.or.jp/rss/news/cat5.xml", "source": "NHK経済"},
+      {"url": "https://www.nhk.or.jp/rss/news/cat6.xml", "source": "NHK国際"},
+      {"url": "https://news.yahoo.co.jp/rss/topics/business.xml", "source": "Y!経済"},
+      {"url": "https://news.yahoo.co.jp/rss/topics/world.xml", "source": "Y!国際"},
+      {"url": "https://news.yahoo.co.jp/rss/topics/domestic.xml", "source": "Y!国内"},
+      {"url": "https://assets.wor.jp/rss/rdf/reuters/top.rdf", "source": "Reuters"},
+      {"url": "https://assets.wor.jp/rss/rdf/nikkei/news.rdf", "source": "日経"}
+    ]' data-limit="15">
       <div class="loading-msg">読み込み中...</div>
     </div>
 
@@ -311,8 +330,10 @@
     <div class="section-label">📢 最新ヘッドライン（自動取得）</div>
     <div class="headlines" data-feeds='[
       {"url": "https://rss.itmedia.co.jp/rss/2.0/monoist.xml", "source": "MONOist"},
-      {"url": "https://news.yahoo.co.jp/rss/categories/business.xml", "source": "Yahoo!経済"}
-    ]' data-limit="8">
+      {"url": "https://rss.itmedia.co.jp/rss/2.0/techfactory.xml", "source": "TechFactory"},
+      {"url": "https://rss.itmedia.co.jp/rss/2.0/eetimes.xml", "source": "EE Times"},
+      {"url": "https://newswitch.jp/rss", "source": "ニュースイッチ"}
+    ]' data-limit="12">
       <div class="loading-msg">読み込み中...</div>
     </div>
 
@@ -333,9 +354,11 @@
 
     <div class="section-label">📢 最新ヘッドライン（自動取得）</div>
     <div class="headlines" data-feeds='[
-      {"url": "https://rss.itmedia.co.jp/rss/2.0/news_bursts.xml", "source": "ITmedia"},
-      {"url": "https://assets.wor.jp/rss/rdf/reuters/top.rdf", "source": "Reuters"}
-    ]' data-limit="8">
+      {"url": "https://rss.itmedia.co.jp/rss/2.0/built.xml", "source": "BUILT"},
+      {"url": "https://rss.itmedia.co.jp/rss/2.0/smartjapan.xml", "source": "スマートJP"},
+      {"url": "https://rss.itmedia.co.jp/rss/2.0/edn.xml", "source": "EDN Japan"},
+      {"url": "https://rss.itmedia.co.jp/rss/2.0/news_bursts.xml", "source": "ITmedia"}
+    ]' data-limit="12">
       <div class="loading-msg">読み込み中...</div>
     </div>
 
@@ -410,33 +433,26 @@
   <section id="customers" class="card full-width">
     <h2><span class="icon">💼</span>顧客株価<span class="tag">小松・いすゞ・三菱重工</span></h2>
 
-    <div class="chart-box">
-      <div class="label">小松製作所（6301.T）<a href="https://finance.yahoo.co.jp/quote/6301.T" target="_blank" rel="noopener" style="float:right; color:var(--accent); font-size:11px; text-decoration:none;">Yahoo!ファイナンス →</a></div>
-      <div class="tradingview-widget-container">
-        <div class="tradingview-widget-container__widget" style="height: 220px;"></div>
-        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
-        {"symbol": "TSE:6301", "width": "100%", "height": 220, "locale": "ja", "dateRange": "3M", "colorTheme": "dark", "isTransparent": true, "autosize": true}
-        </script>
+    <div class="chart-grid">
+      <div class="chart-box">
+        <div class="label">小松製作所（6301.T）<a href="https://finance.yahoo.co.jp/quote/6301.T" target="_blank" rel="noopener" style="float:right; color:var(--accent); font-size:11px; text-decoration:none;">Yahoo!ファイナンス →</a></div>
+        <a href="https://stooq.com/q/?s=6301.jp" target="_blank" rel="noopener">
+          <img src="https://stooq.com/c/?s=6301.jp&amp;c=3m&amp;t=c&amp;a=lg&amp;b=0" alt="小松製作所 3ヶ月チャート" class="stock-chart-img" loading="lazy">
+        </a>
       </div>
-    </div>
 
-    <div class="chart-box">
-      <div class="label">いすゞ自動車（7202.T）<a href="https://finance.yahoo.co.jp/quote/7202.T" target="_blank" rel="noopener" style="float:right; color:var(--accent); font-size:11px; text-decoration:none;">Yahoo!ファイナンス →</a></div>
-      <div class="tradingview-widget-container">
-        <div class="tradingview-widget-container__widget" style="height: 220px;"></div>
-        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
-        {"symbol": "TSE:7202", "width": "100%", "height": 220, "locale": "ja", "dateRange": "3M", "colorTheme": "dark", "isTransparent": true, "autosize": true}
-        </script>
+      <div class="chart-box">
+        <div class="label">いすゞ自動車（7202.T）<a href="https://finance.yahoo.co.jp/quote/7202.T" target="_blank" rel="noopener" style="float:right; color:var(--accent); font-size:11px; text-decoration:none;">Yahoo!ファイナンス →</a></div>
+        <a href="https://stooq.com/q/?s=7202.jp" target="_blank" rel="noopener">
+          <img src="https://stooq.com/c/?s=7202.jp&amp;c=3m&amp;t=c&amp;a=lg&amp;b=0" alt="いすゞ自動車 3ヶ月チャート" class="stock-chart-img" loading="lazy">
+        </a>
       </div>
-    </div>
 
-    <div class="chart-box">
-      <div class="label">三菱重工業（7011.T）<a href="https://finance.yahoo.co.jp/quote/7011.T" target="_blank" rel="noopener" style="float:right; color:var(--accent); font-size:11px; text-decoration:none;">Yahoo!ファイナンス →</a></div>
-      <div class="tradingview-widget-container">
-        <div class="tradingview-widget-container__widget" style="height: 220px;"></div>
-        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
-        {"symbol": "TSE:7011", "width": "100%", "height": 220, "locale": "ja", "dateRange": "3M", "colorTheme": "dark", "isTransparent": true, "autosize": true}
-        </script>
+      <div class="chart-box">
+        <div class="label">三菱重工業（7011.T）<a href="https://finance.yahoo.co.jp/quote/7011.T" target="_blank" rel="noopener" style="float:right; color:var(--accent); font-size:11px; text-decoration:none;">Yahoo!ファイナンス →</a></div>
+        <a href="https://stooq.com/q/?s=7011.jp" target="_blank" rel="noopener">
+          <img src="https://stooq.com/c/?s=7011.jp&amp;c=3m&amp;t=c&amp;a=lg&amp;b=0" alt="三菱重工業 3ヶ月チャート" class="stock-chart-img" loading="lazy">
+        </a>
       </div>
     </div>
   </section>
@@ -448,8 +464,10 @@
     <div class="section-label">📢 最新ヘッドライン（自動取得）</div>
     <div class="headlines" data-feeds='[
       {"url": "https://assets.wor.jp/rss/rdf/reuters/top.rdf", "source": "Reuters"},
-      {"url": "https://news.yahoo.co.jp/rss/topics/business.xml", "source": "Yahoo!経済"}
-    ]' data-limit="10">
+      {"url": "https://assets.wor.jp/rss/rdf/nikkei/news.rdf", "source": "日経"},
+      {"url": "https://news.yahoo.co.jp/rss/topics/business.xml", "source": "Y!経済"},
+      {"url": "https://www.nhk.or.jp/rss/news/cat5.xml", "source": "NHK経済"}
+    ]' data-limit="12">
       <div class="loading-msg">読み込み中...</div>
     </div>
 
