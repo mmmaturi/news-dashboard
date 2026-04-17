@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>毎日ニュースダッシュボード</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --card: #1a2029;
+    --card-hover: #232b38;
+    --text: #e6e9ef;
+    --text-dim: #9aa4b2;
+    --accent: #4fc3f7;
+    --accent-hover: #81d4fa;
+    --border: #2d3644;
+    --shadow: 0 2px 8px rgba(0,0,0,0.3);
+    --headline-bg: #151b24;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f5f7fa;
+      --card: #ffffff;
+      --card-hover: #f0f3f7;
+      --text: #1a2029;
+      --text-dim: #5a6472;
+      --accent: #0277bd;
+      --accent-hover: #01579b;
+      --border: #dde2e8;
+      --shadow: 0 2px 8px rgba(0,0,0,0.08);
+      --headline-bg: #fafbfc;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  header .title-block h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+  }
+  header .date {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .refresh-btn {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .refresh-btn:hover { background: var(--accent-hover); }
+  .refresh-btn:disabled { opacity: 0.5; cursor: wait; }
+  .refresh-btn .spin { display: inline-block; transition: transform 0.5s; }
+  .refresh-btn.loading .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  @media (min-width: 900px) {
+    .container { grid-template-columns: repeat(2, 1fr); }
+    .full-width { grid-column: 1 / -1; }
+  }
+  @media (min-width: 1200px) {
+    .container { grid-template-columns: repeat(3, 1fr); }
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  .card h2 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent);
+  }
+  .card h2 .icon { font-size: 20px; }
+  .section-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 12px 0 6px 0;
+    font-weight: 600;
+  }
+  .headlines {
+    background: var(--headline-bg);
+    border-radius: 8px;
+    padding: 8px;
+    margin-bottom: 12px;
+    min-height: 60px;
+  }
+  .headline-item {
+    padding: 8px 10px;
+    border-bottom: 1px dashed var(--border);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .headline-item:last-child { border-bottom: none; }
+  .headline-item a {
+    color: var(--text);
+    text-decoration: none;
+    display: block;
+  }
+  .headline-item a:hover { color: var(--accent); }
+  .headline-meta {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+  .headline-source {
+    display: inline-block;
+    padding: 1px 6px;
+    background: var(--accent);
+    color: var(--bg);
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .loading-msg, .error-msg {
+    padding: 12px;
+    color: var(--text-dim);
+    font-size: 13px;
+    text-align: center;
+  }
+  .error-msg { color: #e57373; }
+  .link-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .link-list li a {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: transparent;
+    color: var(--text);
+    text-decoration: none;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
+    font-size: 14px;
+  }
+  .link-list li a:hover {
+    background: var(--card-hover);
+    border-color: var(--border);
+    color: var(--accent);
+  }
+  .link-list li a .arrow { color: var(--text-dim); font-size: 12px; }
+  .chart-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    margin-bottom: 8px;
+  }
+  .chart-box .label {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+    padding: 0 4px;
+  }
+  footer {
+    text-align: center;
+    padding: 24px 16px;
+    color: var(--text-dim);
+    font-size: 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 32px;
+  }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--border);
+    color: var(--text-dim);
+    font-size: 11px;
+    margin-left: 8px;
+  }
+  .quick-nav {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 8px 16px;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    -webkit-overflow-scrolling: touch;
+  }
+  .quick-nav a {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    background: var(--bg);
+    color: var(--text);
+    text-decoration: none;
+    border-radius: 16px;
+    font-size: 13px;
+    border: 1px solid var(--border);
+  }
+  .quick-nav a:hover { background: var(--accent); color: var(--bg); }
+  .update-info {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: right;
+    margin-top: -6px;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-block">
+    <h1>📰 毎日ニュースダッシュボード</h1>
+    <div class="date" id="currentDate"></div>
+  </div>
+  <button class="refresh-btn" id="refreshBtn" onclick="refreshAll()">
+    <span class="spin">🔄</span><span>更新</span>
+  </button>
+</header>
+
+<nav class="quick-nav">
+  <a href="#general">主要ニュース</a>
+  <a href="#manufacturing">製造業</a>
+  <a href="#industry">工業</a>
+  <a href="#indices">主要指数</a>
+  <a href="#customers">顧客株価</a>
+  <a href="#stock-topics">株トピックス</a>
+</nav>
+
+<div class="update-info" id="lastUpdate" style="padding: 0 20px;"></div>
+
+<div class="container">
+
+  <!-- 主要ニュース -->
+  <section id="general" class="card">
+    <h2><span class="icon">🌐</span>主要ニュース<span class="tag">経済・政治・国際</span></h2>
+
+    <div class="section-label">📢 最新ヘッドライン（自動取得）</div>
+    <div class="headlines" data-feeds='[
+      {"url": "https://www.nhk.or.jp/rss/news/cat0.xml", "source": "NHK"},
+      {"url": "https://news.yahoo.co.jp/rss/topics/top-picks.xml", "source": "Yahoo!"},
+      {"url": "https://news.yahoo.co.jp/rss/topics/business.xml", "source": "経済"},
+      {"url": "https://news.yahoo.co.jp/rss/topics/world.xml", "source": "国際"}
+    ]' data-limit="10">
+      <div class="loading-msg">読み込み中...</div>
+    </div>
+
+    <div class="section-label">🔗 ニュースサイト一覧</div>
+    <ul class="link-list">
+      <li><a href="https://www3.nhk.or.jp/news/" target="_blank" rel="noopener">NHK NEWS WEB<span class="arrow">→</span></a></li>
+      <li><a href="https://www.nikkei.com/" target="_blank" rel="noopener">日本経済新聞<span class="arrow">→</span></a></li>
+      <li><a href="https://jp.reuters.com/" target="_blank" rel="noopener">ロイター（Reuters Japan）<span class="arrow">→</span></a></li>
+      <li><a href="https://www.bloomberg.co.jp/" target="_blank" rel="noopener">Bloomberg Japan<span class="arrow">→</span></a></li>
+      <li><a href="https://www.jiji.com/" target="_blank" rel="noopener">時事ドットコム<span class="arrow">→</span></a></li>
+      <li><a href="https://www.asahi.com/" target="_blank" rel="noopener">朝日新聞デジタル<span class="arrow">→</span></a></li>
+      <li><a href="https://mainichi.jp/" target="_blank" rel="noopener">毎日新聞<span class="arrow">→</span></a></li>
+      <li><a href="https://www.yomiuri.co.jp/" target="_blank" rel="noopener">読売新聞オンライン<span class="arrow">→</span></a></li>
+      <li><a href="https://www.bbc.com/japanese" target="_blank" rel="noopener">BBC News Japan<span class="arrow">→</span></a></li>
+      <li><a href="https://www.cnn.co.jp/" target="_blank" rel="noopener">CNN.co.jp<span class="arrow">→</span></a></li>
+    </ul>
+  </section>
+
+  <!-- 製造業ニュース -->
+  <section id="manufacturing" class="card">
+    <h2><span class="icon">🏭</span>製造業ニュース</h2>
+
+    <div class="section-label">📢 最新ヘッドライン（自動取得）</div>
+    <div class="headlines" data-feeds='[
+      {"url": "https://rss.itmedia.co.jp/rss/2.0/monoist.xml", "source": "MONOist"},
+      {"url": "https://news.yahoo.co.jp/rss/categories/business.xml", "source": "Yahoo!経済"}
+    ]' data-limit="8">
+      <div class="loading-msg">読み込み中...</div>
+    </div>
+
+    <div class="section-label">🔗 ニュースサイト一覧</div>
+    <ul class="link-list">
+      <li><a href="https://www.nikkan.co.jp/" target="_blank" rel="noopener">日刊工業新聞<span class="arrow">→</span></a></li>
+      <li><a href="https://newswitch.jp/" target="_blank" rel="noopener">ニュースイッチ<span class="arrow">→</span></a></li>
+      <li><a href="https://monoist.itmedia.co.jp/" target="_blank" rel="noopener">MONOist<span class="arrow">→</span></a></li>
+      <li><a href="https://xtech.nikkei.com/" target="_blank" rel="noopener">日経クロステック<span class="arrow">→</span></a></li>
+      <li><a href="https://www.meti.go.jp/press/index.html" target="_blank" rel="noopener">経済産業省 報道発表<span class="arrow">→</span></a></li>
+      <li><a href="https://www.jeita.or.jp/japanese/topics/" target="_blank" rel="noopener">JEITA<span class="arrow">→</span></a></li>
+    </ul>
+  </section>
+
+  <!-- 工業ニュース -->
+  <section id="industry" class="card">
+    <h2><span class="icon">⚙️</span>工業ニュース</h2>
+
+    <div class="section-label">📢 最新ヘッドライン（自動取得）</div>
+    <div class="headlines" data-feeds='[
+      {"url": "https://rss.itmedia.co.jp/rss/2.0/news_bursts.xml", "source": "ITmedia"},
+      {"url": "https://assets.wor.jp/rss/rdf/reuters/top.rdf", "source": "Reuters"}
+    ]' data-limit="8">
+      <div class="loading-msg">読み込み中...</div>
+    </div>
+
+    <div class="section-label">🔗 ニュースサイト一覧</div>
+    <ul class="link-list">
+      <li><a href="https://www.jsme.or.jp/" target="_blank" rel="noopener">日本機械学会<span class="arrow">→</span></a></li>
+      <li><a href="https://www.jmf.or.jp/" target="_blank" rel="noopener">日本機械工業連合会<span class="arrow">→</span></a></li>
+      <li><a href="https://www.nikkeibp.co.jp/atcl/news/" target="_blank" rel="noopener">日経BP<span class="arrow">→</span></a></li>
+      <li><a href="https://www.zaikei.co.jp/" target="_blank" rel="noopener">財界ニュース<span class="arrow">→</span></a></li>
+      <li><a href="https://www.sangyo-times.jp/" target="_blank" rel="noopener">産業タイムズ社<span class="arrow">→</span></a></li>
+      <li><a href="https://techon.nikkeibp.co.jp/" target="_blank" rel="noopener">Tech-On!<span class="arrow">→</span></a></li>
+    </ul>
+  </section>
+
+  <!-- 主要指数 -->
+  <section id="indices" class="card full-width">
+    <h2><span class="icon">📈</span>主要指数<span class="tag">S&P500 / ダウ / 日経平均</span></h2>
+
+    <div class="tradingview-widget-container" style="margin-bottom: 12px;">
+      <div class="tradingview-widget-container__widget"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
+      {
+        "symbols": [
+          {"proName": "FOREXCOM:SPXUSD", "title": "S&P 500"},
+          {"proName": "FOREXCOM:DJI", "title": "ダウ平均"},
+          {"proName": "INDEX:NKY", "title": "日経平均"},
+          {"proName": "TVC:VIX", "title": "VIX"},
+          {"proName": "FX_IDC:USDJPY", "title": "ドル円"},
+          {"proName": "TVC:GOLD", "title": "金"}
+        ],
+        "showSymbolLogo": true,
+        "isTransparent": true,
+        "displayMode": "adaptive",
+        "colorTheme": "dark",
+        "locale": "ja"
+      }
+      </script>
+    </div>
+
+    <div class="chart-box">
+      <div class="label">S&P 500</div>
+      <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget" style="height: 220px;"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+        {"symbol": "FOREXCOM:SPXUSD", "width": "100%", "height": 220, "locale": "ja", "dateRange": "3M", "colorTheme": "dark", "isTransparent": true, "autosize": true}
+        </script>
+      </div>
+    </div>
+
+    <div class="chart-box">
+      <div class="label">ダウ平均（DJI）</div>
+      <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget" style="height: 220px;"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+        {"symbol": "FOREXCOM:DJI", "width": "100%", "height": 220, "locale": "ja", "dateRange": "3M", "colorTheme": "dark", "isTransparent": true, "autosize": true}
+        </script>
+      </div>
+    </div>
+
+    <div class="chart-box">
+      <div class="label">日経平均（Nikkei 225）</div>
+      <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget" style="height: 220px;"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+        {"symbol": "INDEX:NKY", "width": "100%", "height": 220, "locale": "ja", "dateRange": "3M", "colorTheme": "dark", "isTransparent": true, "autosize": true}
+        </script>
+      </div>
+    </div>
+  </section>
+
+  <!-- 顧客株価 -->
+  <section id="customers" class="card full-width">
+    <h2><span class="icon">💼</span>顧客株価<span class="tag">小松・いすゞ・三菱重工</span></h2>
+
+    <div class="chart-box">
+      <div class="label">小松製作所（6301.T）<a href="https://finance.yahoo.co.jp/quote/6301.T" target="_blank" rel="noopener" style="float:right; color:var(--accent); font-size:11px; text-decoration:none;">Yahoo!ファイナンス →</a></div>
+      <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget" style="height: 220px;"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+        {"symbol": "TSE:6301", "width": "100%", "height": 220, "locale": "ja", "dateRange": "3M", "colorTheme": "dark", "isTransparent": true, "autosize": true}
+        </script>
+      </div>
+    </div>
+
+    <div class="chart-box">
+      <div class="label">いすゞ自動車（7202.T）<a href="https://finance.yahoo.co.jp/quote/7202.T" target="_blank" rel="noopener" style="float:right; color:var(--accent); font-size:11px; text-decoration:none;">Yahoo!ファイナンス →</a></div>
+      <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget" style="height: 220px;"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+        {"symbol": "TSE:7202", "width": "100%", "height": 220, "locale": "ja", "dateRange": "3M", "colorTheme": "dark", "isTransparent": true, "autosize": true}
+        </script>
+      </div>
+    </div>
+
+    <div class="chart-box">
+      <div class="label">三菱重工業（7011.T）<a href="https://finance.yahoo.co.jp/quote/7011.T" target="_blank" rel="noopener" style="float:right; color:var(--accent); font-size:11px; text-decoration:none;">Yahoo!ファイナンス →</a></div>
+      <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget" style="height: 220px;"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+        {"symbol": "TSE:7011", "width": "100%", "height": 220, "locale": "ja", "dateRange": "3M", "colorTheme": "dark", "isTransparent": true, "autosize": true}
+        </script>
+      </div>
+    </div>
+  </section>
+
+  <!-- 株トピックス -->
+  <section id="stock-topics" class="card">
+    <h2><span class="icon">💹</span>株トピックス</h2>
+
+    <div class="section-label">📢 最新ヘッドライン（自動取得）</div>
+    <div class="headlines" data-feeds='[
+      {"url": "https://assets.wor.jp/rss/rdf/reuters/top.rdf", "source": "Reuters"},
+      {"url": "https://news.yahoo.co.jp/rss/topics/business.xml", "source": "Yahoo!経済"}
+    ]' data-limit="10">
+      <div class="loading-msg">読み込み中...</div>
+    </div>
+
+    <div class="section-label">🔗 ニュースサイト一覧</div>
+    <ul class="link-list">
+      <li><a href="https://kabutan.jp/news/" target="_blank" rel="noopener">株探<span class="arrow">→</span></a></li>
+      <li><a href="https://finance.yahoo.co.jp/news/" target="_blank" rel="noopener">Yahoo!ファイナンス<span class="arrow">→</span></a></li>
+      <li><a href="https://www.nikkei.com/markets/" target="_blank" rel="noopener">日経 マーケット<span class="arrow">→</span></a></li>
+      <li><a href="https://jp.reuters.com/markets/" target="_blank" rel="noopener">ロイター マーケット<span class="arrow">→</span></a></li>
+      <li><a href="https://www.bloomberg.co.jp/markets" target="_blank" rel="noopener">Bloomberg マーケット<span class="arrow">→</span></a></li>
+      <li><a href="https://diamond.jp/category/market" target="_blank" rel="noopener">ダイヤモンドオンライン<span class="arrow">→</span></a></li>
+      <li><a href="https://minkabu.jp/news" target="_blank" rel="noopener">みんかぶ<span class="arrow">→</span></a></li>
+    </ul>
+  </section>
+
+  <!-- 世界市場ヒートマップ -->
+  <section class="card full-width">
+    <h2><span class="icon">🔥</span>世界市場ヒートマップ</h2>
+    <div class="tradingview-widget-container">
+      <div class="tradingview-widget-container__widget" style="height: 400px;"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-market-overview.js" async>
+      {
+        "colorTheme": "dark", "dateRange": "1D", "showChart": true, "locale": "ja",
+        "width": "100%", "height": 400, "isTransparent": true, "showSymbolLogo": true,
+        "tabs": [
+          {"title": "指数", "symbols": [
+            {"s": "FOREXCOM:SPXUSD", "d": "S&P 500"},
+            {"s": "FOREXCOM:DJI", "d": "ダウ"},
+            {"s": "INDEX:NKY", "d": "日経平均"},
+            {"s": "INDEX:TOPIX", "d": "TOPIX"},
+            {"s": "FOREXCOM:NSXUSD", "d": "ナスダック"}
+          ]},
+          {"title": "顧客銘柄", "symbols": [
+            {"s": "TSE:6301", "d": "小松製作所"},
+            {"s": "TSE:7202", "d": "いすゞ自動車"},
+            {"s": "TSE:7011", "d": "三菱重工業"}
+          ]},
+          {"title": "為替", "symbols": [
+            {"s": "FX_IDC:USDJPY", "d": "ドル円"},
+            {"s": "FX_IDC:EURJPY", "d": "ユーロ円"},
+            {"s": "FX_IDC:EURUSD", "d": "ユーロドル"}
+          ]}
+        ]
+      }
+      </script>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  © 毎日ニュースダッシュボード / チャート: TradingView / ヘッドライン取得: rss2json API / データには遅延がある場合があります
+</footer>
+
+<script>
+  // ============= 日時表示 =============
+  function updateDate() {
+    const now = new Date();
+    const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+    const fmt = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日(${weekdays[now.getDay()]}) ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+    document.getElementById('currentDate').textContent = fmt;
+  }
+  updateDate();
+  setInterval(updateDate, 60000);
+
+  // ============= RSS フィード取得 =============
+  // rss2json の無料エンドポイントを使用（APIキー不要、レート制限あり）
+  const RSS2JSON_ENDPOINT = 'https://api.rss2json.com/v1/api.json?rss_url=';
+
+  function formatRelativeDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 60) return 'さっき';
+    if (diff < 3600) return `${Math.floor(diff/60)}分前`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}時間前`;
+    if (diff < 604800) return `${Math.floor(diff/86400)}日前`;
+    return d.toLocaleDateString('ja-JP', {month: 'numeric', day: 'numeric'});
+  }
+
+  async function fetchFeed(feedConfig) {
+    try {
+      const url = RSS2JSON_ENDPOINT + encodeURIComponent(feedConfig.url);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (data.status !== 'ok') throw new Error(data.message || 'fetch failed');
+      return (data.items || []).map(item => ({
+        title: item.title,
+        link: item.link,
+        pubDate: item.pubDate,
+        source: feedConfig.source
+      }));
+    } catch (e) {
+      console.warn(`[${feedConfig.source}] RSS取得失敗:`, e.message);
+      return [];
+    }
+  }
+
+  async function loadHeadlines(container) {
+    let feeds;
+    try {
+      feeds = JSON.parse(container.dataset.feeds);
+    } catch (e) {
+      container.innerHTML = '<div class="error-msg">設定エラー</div>';
+      return;
+    }
+    const limit = parseInt(container.dataset.limit || '10', 10);
+
+    container.innerHTML = '<div class="loading-msg">読み込み中...</div>';
+
+    // 全フィードを並列取得
+    const results = await Promise.all(feeds.map(fetchFeed));
+    let items = [].concat(...results);
+
+    // 日付でソート（新しい順）
+    items.sort((a, b) => {
+      const da = new Date(a.pubDate).getTime() || 0;
+      const db = new Date(b.pubDate).getTime() || 0;
+      return db - da;
+    });
+
+    items = items.slice(0, limit);
+
+    if (items.length === 0) {
+      container.innerHTML = '<div class="error-msg">ヘッドラインを取得できませんでした（時間をおいて再試行してください）</div>';
+      return;
+    }
+
+    container.innerHTML = items.map(item => `
+      <div class="headline-item">
+        <a href="${escapeHtml(item.link)}" target="_blank" rel="noopener">
+          <span class="headline-source">${escapeHtml(item.source)}</span>${escapeHtml(item.title)}
+          <div class="headline-meta">${escapeHtml(formatRelativeDate(item.pubDate))}</div>
+        </a>
+      </div>
+    `).join('');
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ============= 全体更新 =============
+  let lastRefreshTime = 0;
+
+  async function refreshAll() {
+    const btn = document.getElementById('refreshBtn');
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    const containers = document.querySelectorAll('.headlines[data-feeds]');
+    await Promise.all(Array.from(containers).map(loadHeadlines));
+
+    // 最終更新時刻を表示
+    const now = new Date();
+    const t = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+    document.getElementById('lastUpdate').textContent = `最終更新: ${now.toLocaleDateString('ja-JP')} ${t}`;
+
+    lastRefreshTime = Date.now();
+    btn.classList.remove('loading');
+    btn.disabled = false;
+  }
+
+  // 起動時に取得
+  refreshAll();
+
+  // 1時間ごとに自動更新（開きっぱなしの時用）
+  setInterval(refreshAll, 60 * 60 * 1000);
+
+  // タブに戻ってきた時、最後の更新から30分以上経っていれば自動更新
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && Date.now() - lastRefreshTime > 30 * 60 * 1000) {
+      refreshAll();
+    }
+  });
+</script>
+
+</body>
+</html>
