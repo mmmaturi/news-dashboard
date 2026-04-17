@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>週次ニュースレポート</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
   :root {
     --bg: #0f1419;
@@ -20,8 +21,11 @@
     --bar2: #81c784;
     --bar3: #ffb74d;
     --bar4: #ba68c8;
-    --bar5: #f06292;
-    --bar6: #4dd0e1;
+    --hot1: #ef5350;
+    --hot2: #ff7043;
+    --hot3: #ffa726;
+    --hot4: #26a69a;
+    --hot5: #66bb6a;
   }
   @media (prefers-color-scheme: light) {
     :root {
@@ -145,12 +149,18 @@
     border-bottom: 2px solid var(--accent);
   }
   .section h3 .icon { font-size: 22px; }
+  .section .hint {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: -12px;
+    margin-bottom: 14px;
+  }
 
   /* Bar chart */
   .bar-chart { display: flex; flex-direction: column; gap: 10px; }
   .bar-row {
     display: grid;
-    grid-template-columns: 100px 1fr 50px;
+    grid-template-columns: 100px 1fr 60px;
     align-items: center;
     gap: 12px;
     font-size: 13px;
@@ -170,29 +180,32 @@
   }
   .bar-row .bar-count { color: var(--text-dim); text-align: right; font-weight: 600; }
 
-  /* Keyword cloud */
-  .keyword-cloud {
+  /* Bubble chart */
+  #bubbleChart {
+    width: 100%;
+    min-height: 450px;
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 8px 0;
     align-items: center;
+    justify-content: center;
   }
-  .keyword-tag {
-    padding: 6px 12px;
-    border-radius: 16px;
-    background: var(--headline-bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    transition: all 0.2s;
-    cursor: default;
+  #bubbleChart svg { max-width: 100%; height: auto; overflow: visible; }
+  .bubble-node { cursor: pointer; transition: opacity 0.2s; }
+  .bubble-node:hover { opacity: 0.85; }
+  .bubble-node:hover circle { filter: brightness(1.15); }
+  .bubble-text {
+    fill: #fff;
+    text-anchor: middle;
+    pointer-events: none;
+    font-weight: 700;
   }
-  .keyword-tag:hover {
-    background: var(--accent);
-    color: var(--bg);
+  .bubble-count {
+    fill: rgba(255,255,255,0.75);
+    text-anchor: middle;
+    pointer-events: none;
+    font-size: 10px;
   }
 
-  /* Article lists per category */
+  /* Article lists */
   .category-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -226,15 +239,25 @@
   }
   .article-list { list-style: none; padding: 0; margin: 0; }
   .article-list li {
-    padding: 8px 0;
+    padding: 10px 0;
     border-bottom: 1px dashed var(--border);
     font-size: 13px;
     line-height: 1.5;
   }
   .article-list li:last-child { border-bottom: none; }
   .article-list a { color: var(--text); text-decoration: none; display: block; }
-  .article-list a:hover { color: var(--accent); }
-  .article-meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .article-list a:hover .article-title { color: var(--accent); }
+  .article-title { font-weight: 600; }
+  .article-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .article-meta { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
   .article-source {
     display: inline-block;
     padding: 1px 6px;
@@ -283,10 +306,138 @@
     display: block;
     border-radius: 4px;
     background: #fff;
+    min-height: 100px;
   }
 
+  /* Source breakdown */
+  .source-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .source-tag {
+    padding: 6px 10px;
+    background: var(--headline-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .source-tag .badge {
+    background: var(--accent);
+    color: var(--bg);
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 11px;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    backdrop-filter: blur(4px);
+  }
+  .modal-overlay.active { display: flex; animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal-content {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 780px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  .modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .modal-title .keyword-label {
+    background: var(--hot1);
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 14px;
+  }
+  .modal-close {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-close:hover { background: var(--card-hover); }
+  .modal-body {
+    padding: 16px 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .modal-article {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-article:last-child { border-bottom: none; }
+  .modal-article a {
+    color: var(--text);
+    text-decoration: none;
+    display: block;
+  }
+  .modal-article a:hover .modal-article-title { color: var(--accent); }
+  .modal-article-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  .modal-article-title mark {
+    background: var(--hot3);
+    color: var(--bg);
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+  .modal-article-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .modal-article-desc mark {
+    background: var(--hot3);
+    color: var(--bg);
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+  .modal-article-meta { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+
   .loading { padding: 40px; text-align: center; color: var(--text-dim); }
-  .error { padding: 20px; text-align: center; color: #ef5350; }
+  .empty { padding: 30px; text-align: center; color: var(--text-dim); font-size: 13px; }
 
   footer {
     text-align: center;
@@ -317,7 +468,7 @@
   <div class="hero">
     <div class="period" id="periodLabel">期間</div>
     <h2>今週の主要トピック</h2>
-    <div class="summary-stats" id="summaryStats">
+    <div class="summary-stats">
       <div class="stat-card">
         <div class="label">取得記事数</div>
         <div class="value" id="totalArticles">-</div>
@@ -349,10 +500,11 @@
     </div>
   </div>
 
-  <!-- Keyword cloud -->
+  <!-- Keyword bubble chart -->
   <div class="section">
-    <h3><span class="icon">🔤</span>今週のキーワード（出現頻度トップ）</h3>
-    <div class="keyword-cloud" id="keywordCloud">
+    <h3><span class="icon">🫧</span>今週のキーワード・バブルチャート</h3>
+    <div class="hint">💡 バブルをクリックすると、そのキーワードを含む記事が一覧表示されます。大きさ・色は出現頻度を表します。</div>
+    <div id="bubbleChart">
       <div class="loading">抽出中...</div>
     </div>
   </div>
@@ -360,54 +512,78 @@
   <!-- Category articles -->
   <div class="section">
     <h3><span class="icon">📰</span>カテゴリ別 主要記事</h3>
+    <div class="hint">各記事タイトルをクリックすると元記事へジャンプします。概要の一部も表示されます。</div>
     <div class="category-grid" id="categoryGrid">
       <div class="loading">読み込み中...</div>
     </div>
   </div>
 
+  <!-- Source breakdown -->
+  <div class="section">
+    <h3><span class="icon">📡</span>ソース別 記事数</h3>
+    <div class="source-list" id="sourceList">
+      <div class="loading">集計中...</div>
+    </div>
+  </div>
+
   <!-- Stock performance -->
   <div class="section">
-    <h3><span class="icon">💹</span>株価週間パフォーマンス</h3>
-    <div class="stocks-grid">
+    <h3><span class="icon">💹</span>株価チャート（直近5日）</h3>
+    <div class="hint">直近5営業日のチャート。クリックで詳細ページへ。</div>
+    <div class="stocks-grid" id="stocksGrid">
       <div class="stock-item">
-        <div class="name">S&amp;P 500 <a href="https://stooq.com/q/?s=^spx" target="_blank" rel="noopener">詳細→</a></div>
-        <img src="https://stooq.com/c/?s=^spx&amp;c=1w&amp;t=c&amp;a=lg&amp;b=0" alt="S&P 500 週間チャート" loading="lazy">
+        <div class="name">S&amp;P 500 <a href="https://stooq.com/q/?s=%5Espx" target="_blank" rel="noopener">詳細→</a></div>
+        <img src="https://stooq.com/c/?s=%5Espx&amp;c=5d&amp;t=c&amp;a=lg&amp;b=0" alt="S&P 500 5日チャート" loading="lazy">
       </div>
       <div class="stock-item">
-        <div class="name">ダウ平均 <a href="https://stooq.com/q/?s=^dji" target="_blank" rel="noopener">詳細→</a></div>
-        <img src="https://stooq.com/c/?s=^dji&amp;c=1w&amp;t=c&amp;a=lg&amp;b=0" alt="ダウ 週間チャート" loading="lazy">
+        <div class="name">ダウ平均 <a href="https://stooq.com/q/?s=%5Edji" target="_blank" rel="noopener">詳細→</a></div>
+        <img src="https://stooq.com/c/?s=%5Edji&amp;c=5d&amp;t=c&amp;a=lg&amp;b=0" alt="ダウ 5日チャート" loading="lazy">
       </div>
       <div class="stock-item">
-        <div class="name">日経平均 <a href="https://stooq.com/q/?s=^nkx" target="_blank" rel="noopener">詳細→</a></div>
-        <img src="https://stooq.com/c/?s=^nkx&amp;c=1w&amp;t=c&amp;a=lg&amp;b=0" alt="日経平均 週間チャート" loading="lazy">
+        <div class="name">日経平均 <a href="https://stooq.com/q/?s=%5Enkx" target="_blank" rel="noopener">詳細→</a></div>
+        <img src="https://stooq.com/c/?s=%5Enkx&amp;c=5d&amp;t=c&amp;a=lg&amp;b=0" alt="日経平均 5日チャート" loading="lazy">
       </div>
       <div class="stock-item">
         <div class="name">小松製作所 (6301) <a href="https://finance.yahoo.co.jp/quote/6301.T" target="_blank" rel="noopener">Y!→</a></div>
-        <img src="https://stooq.com/c/?s=6301.jp&amp;c=1w&amp;t=c&amp;a=lg&amp;b=0" alt="小松 週間チャート" loading="lazy">
+        <img src="https://stooq.com/c/?s=6301.jp&amp;c=5d&amp;t=c&amp;a=lg&amp;b=0" alt="小松 5日チャート" loading="lazy">
       </div>
       <div class="stock-item">
         <div class="name">いすゞ自動車 (7202) <a href="https://finance.yahoo.co.jp/quote/7202.T" target="_blank" rel="noopener">Y!→</a></div>
-        <img src="https://stooq.com/c/?s=7202.jp&amp;c=1w&amp;t=c&amp;a=lg&amp;b=0" alt="いすゞ 週間チャート" loading="lazy">
+        <img src="https://stooq.com/c/?s=7202.jp&amp;c=5d&amp;t=c&amp;a=lg&amp;b=0" alt="いすゞ 5日チャート" loading="lazy">
       </div>
       <div class="stock-item">
         <div class="name">三菱重工業 (7011) <a href="https://finance.yahoo.co.jp/quote/7011.T" target="_blank" rel="noopener">Y!→</a></div>
-        <img src="https://stooq.com/c/?s=7011.jp&amp;c=1w&amp;t=c&amp;a=lg&amp;b=0" alt="三菱重工 週間チャート" loading="lazy">
+        <img src="https://stooq.com/c/?s=7011.jp&amp;c=5d&amp;t=c&amp;a=lg&amp;b=0" alt="三菱重工 5日チャート" loading="lazy">
       </div>
     </div>
   </div>
 
 </div>
 
+<!-- Modal -->
+<div class="modal-overlay" id="keywordModal" onclick="if(event.target===this) closeModal()">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">
+        <span>🔍 関連記事</span>
+        <span class="keyword-label" id="modalKeyword">-</span>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <div class="loading">読み込み中...</div>
+    </div>
+  </div>
+</div>
+
 <footer>
   データソース: NHK / Yahoo!ニュース / Reuters / 日経 / ITmedia系 / stooq.com / rss2json API<br>
-  毎週開くたびに、直近7日間のニュースを自動集計して表示します
+  直近7日間のニュースを自動集計。ダッシュボードを毎日開くと蓄積されて内容が充実します
 </footer>
 
 <script>
-  // ============= 設定 =============
   const RSS2JSON = 'https://api.rss2json.com/v1/api.json?rss_url=';
 
-  // ダッシュボードと同じフィード設定
   const FEEDS = {
     general: [
       {"url": "https://www.nhk.or.jp/rss/news/cat4.xml", "source": "NHK政治"},
@@ -452,17 +628,19 @@
     market: "var(--bar4)"
   };
 
-  // ストップワード（日本語キーワード抽出時に除外）
   const STOPWORDS = new Set([
     "する","こと","これ","それ","この","その","あの","いる","ある","なる","ない","もの","ため","よう","さん","君","氏",
     "月","日","年","時","分","秒","の","を","に","は","が","と","で","も","から","まで","へ","や","か","だ","で","など",
-    "【","】","「","」","『","』","（","）","［","］","・","、","。","：",":","!","?","！","？","/","／",
     "ニュース","速報","発表","会見","今回","明らか","分かった","されている","しています","される","された",
     "午前","午後","記者","by","NEW","News","news","AM","PM","the","for","and","The","For","And","to","in","of","on",
-    "一覧","記事","配信","配信中","VIEW","View","view","公式","特集","特別","動画"
+    "一覧","記事","配信","公式","特集","特別","動画","画像","写真","対応","報告","想定","開発","最大","全て","について",
+    "現在","予定","影響","可能","必要","実施","実現","発生","場合","状況","情報","結果","内容","問題","今後","今年",
+    "以降","以上","以下","以外","以前","各種","一部","多く","多い","大きな","大きく","新型","新た","大幅","今週"
   ]);
 
-  // ============= 日時表示 =============
+  // グローバルデータ
+  let globalData = null;
+
   function updateDate() {
     const now = new Date();
     const weekdays = ['日','月','火','水','木','金','土'];
@@ -471,15 +649,18 @@
   }
   updateDate();
 
-  function formatDate(d) {
-    return `${d.getMonth()+1}/${d.getDate()}`;
-  }
   function formatFullDate(d) {
     const weekdays = ['日','月','火','水','木','金','土'];
     return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}(${weekdays[d.getDay()]})`;
   }
 
-  // ============= RSS 取得 =============
+  function stripHtml(s) {
+    if (!s) return '';
+    const tmp = document.createElement('div');
+    tmp.innerHTML = s;
+    return (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim();
+  }
+
   async function fetchFeed(feedConfig) {
     try {
       const url = RSS2JSON + encodeURIComponent(feedConfig.url);
@@ -491,6 +672,7 @@
         title: item.title || '',
         link: item.link || '',
         pubDate: item.pubDate || '',
+        description: stripHtml(item.description || '').slice(0, 240),
         source: feedConfig.source,
         pubTime: new Date(item.pubDate || 0).getTime()
       }));
@@ -500,29 +682,21 @@
     }
   }
 
-  // ============= ストレージ（日次スナップショット蓄積） =============
   const STORAGE_KEY = 'newsSnapshots_v1';
-
   function loadSnapshots() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    } catch (e) { return {}; }
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch (e) { return {}; }
   }
   function saveSnapshots(snaps) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(snaps));
-    } catch (e) { console.warn('localStorage save failed'); }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(snaps)); } catch (e) {}
   }
 
-  // ============= キーワード抽出 =============
-  function extractKeywords(titles, topN = 30) {
+  function extractKeywords(titles, topN = 40) {
     const freq = {};
     const text = titles.join(' ');
-    // 簡易トークナイズ: 連続する2-6文字の漢字、カタカナ、アルファベット
     const patterns = [
-      /[\u4E00-\u9FAF]{2,6}/g,          // 漢字
-      /[\u30A0-\u30FF]{2,8}/g,          // カタカナ
-      /[A-Za-z]{3,}/g                   // アルファベット
+      /[\u4E00-\u9FAF]{2,6}/g,
+      /[\u30A0-\u30FF]{2,8}/g,
+      /[A-Za-z][A-Za-z0-9]{2,}/g
     ];
     for (const pat of patterns) {
       const matches = text.match(pat) || [];
@@ -532,51 +706,47 @@
         freq[w] = (freq[w] || 0) + 1;
       }
     }
-    // 2回以上出現したもののみ、頻度順
     return Object.entries(freq)
       .filter(([w, c]) => c >= 2)
       .sort((a, b) => b[1] - a[1])
       .slice(0, topN);
   }
 
-  // ============= レポート生成 =============
   async function generateReport() {
-    // 1週間前の閾値
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     document.getElementById('periodLabel').textContent =
       `${formatFullDate(weekAgo)} 〜 ${formatFullDate(now)} の1週間`;
 
-    // 各カテゴリの記事を並列取得
     const results = {};
     for (const cat of Object.keys(FEEDS)) {
       const items = await Promise.all(FEEDS[cat].map(fetchFeed));
       results[cat] = [].concat(...items);
     }
 
-    // 日次スナップショット蓄積：今日の分を保存
+    // 日次スナップショット蓄積
     const today = now.toISOString().slice(0, 10);
     const snaps = loadSnapshots();
     snaps[today] = {
       timestamp: now.getTime(),
       items: Object.fromEntries(
         Object.entries(results).map(([k, arr]) =>
-          [k, arr.map(it => ({title: it.title, link: it.link, pubDate: it.pubDate, source: it.source, pubTime: it.pubTime}))]
+          [k, arr.map(it => ({
+            title: it.title, link: it.link, pubDate: it.pubDate,
+            description: it.description, source: it.source, pubTime: it.pubTime
+          }))]
         )
       )
     };
-    // 8日以上前の snapshots は削除
     const cutoff = now.getTime() - 8 * 24 * 60 * 60 * 1000;
-    for (const date of Object.keys(snaps)) {
-      if (snaps[date].timestamp < cutoff) delete snaps[date];
+    for (const d of Object.keys(snaps)) {
+      if (snaps[d].timestamp < cutoff) delete snaps[d];
     }
     saveSnapshots(snaps);
 
-    // 過去7日分 = 今日の結果 + 蓄積snapshots をマージ
+    // マージ
     const merged = {general: [], manufacturing: [], industry: [], market: []};
     const seenLinks = {general: new Set(), manufacturing: new Set(), industry: new Set(), market: new Set()};
-
-    // 蓄積分から読み込み
     for (const date of Object.keys(snaps)) {
       const snap = snaps[date];
       for (const cat of Object.keys(merged)) {
@@ -588,76 +758,54 @@
         }
       }
     }
-
-    // 7日以内のみに絞る
     const weekAgoMs = weekAgo.getTime();
     for (const cat of Object.keys(merged)) {
-      merged[cat] = merged[cat].filter(it => {
-        const t = it.pubTime || new Date(it.pubDate || 0).getTime();
-        return t >= weekAgoMs;
-      });
-      // 新しい順にソート
+      merged[cat] = merged[cat].filter(it => (it.pubTime || new Date(it.pubDate || 0).getTime()) >= weekAgoMs);
       merged[cat].sort((a, b) => (b.pubTime || 0) - (a.pubTime || 0));
     }
 
+    globalData = merged;
     renderReport(merged);
   }
 
   function renderReport(data) {
-    // サマリー数値
     const counts = {};
     let total = 0;
-    for (const cat of Object.keys(data)) {
-      counts[cat] = data[cat].length;
-      total += data[cat].length;
-    }
+    for (const cat of Object.keys(data)) { counts[cat] = data[cat].length; total += data[cat].length; }
     document.getElementById('totalArticles').textContent = total;
     document.getElementById('statGeneral').textContent = counts.general;
     document.getElementById('statManufacturing').textContent = counts.manufacturing;
     document.getElementById('statIndustry').textContent = counts.industry;
     document.getElementById('statMarket').textContent = counts.market;
 
-    // 棒グラフ
+    // Bar chart
     const maxCount = Math.max(...Object.values(counts), 1);
-    const barChart = document.getElementById('barChart');
-    barChart.innerHTML = Object.keys(data).map(cat => {
+    document.getElementById('barChart').innerHTML = Object.keys(data).map(cat => {
       const pct = (counts[cat] / maxCount * 100).toFixed(1);
       return `
         <div class="bar-row">
           <div class="bar-label">${CAT_LABELS[cat]}</div>
-          <div class="bar-container">
-            <div class="bar-fill" style="width: ${pct}%; background: ${CAT_COLORS[cat]};"></div>
-          </div>
+          <div class="bar-container"><div class="bar-fill" style="width: ${pct}%; background: ${CAT_COLORS[cat]};"></div></div>
           <div class="bar-count">${counts[cat]}件</div>
-        </div>
-      `;
+        </div>`;
     }).join('');
 
-    // キーワード
+    // Keywords
     const allTitles = [].concat(...Object.values(data)).map(it => it.title);
-    const keywords = extractKeywords(allTitles, 25);
-    const kwCloud = document.getElementById('keywordCloud');
-    if (keywords.length === 0) {
-      kwCloud.innerHTML = '<div style="color: var(--text-dim);">キーワードが見つかりませんでした（データ蓄積を待っています）</div>';
-    } else {
-      const maxFreq = keywords[0][1];
-      kwCloud.innerHTML = keywords.map(([w, c]) => {
-        const size = 11 + (c / maxFreq) * 14;
-        return `<span class="keyword-tag" style="font-size: ${size}px;">${escapeHtml(w)} <span style="color:var(--text-dim); font-size: 10px;">×${c}</span></span>`;
-      }).join('');
-    }
+    const allDescs = [].concat(...Object.values(data)).map(it => it.description || '');
+    const keywords = extractKeywords(allTitles.concat(allDescs.map(s => s.slice(0, 80))), 40);
+    renderBubbleChart(keywords);
 
-    // カテゴリ別記事
+    // Category articles
     const grid = document.getElementById('categoryGrid');
     grid.innerHTML = Object.keys(data).map(cat => {
-      const items = data[cat].slice(0, 10);
+      const items = data[cat].slice(0, 8);
       if (items.length === 0) {
         return `
           <div class="cat-card">
             <h4>${CAT_LABELS[cat]} <span class="count">0件</span></h4>
-            <div style="color: var(--text-dim); font-size: 12px; padding: 10px 0;">直近7日間の記事がまだ蓄積されていません。ダッシュボードを数日開くとここに表示されます。</div>
-          </div>
-        `;
+            <div class="empty">直近7日間の記事がまだ蓄積されていません。ダッシュボードを数日開くとここに表示されます。</div>
+          </div>`;
       }
       return `
         <div class="cat-card">
@@ -666,15 +814,165 @@
             ${items.map(it => `
               <li>
                 <a href="${escapeHtml(it.link)}" target="_blank" rel="noopener">
-                  <span class="article-source">${escapeHtml(it.source)}</span>${escapeHtml(it.title)}
+                  <div class="article-title"><span class="article-source">${escapeHtml(it.source)}</span>${escapeHtml(it.title)}</div>
+                  ${it.description ? `<div class="article-desc">${escapeHtml(it.description)}</div>` : ''}
                   <div class="article-meta">${formatRelative(it.pubTime || new Date(it.pubDate||0).getTime())}</div>
                 </a>
-              </li>
-            `).join('')}
+              </li>`).join('')}
           </ul>
-        </div>
-      `;
+        </div>`;
     }).join('');
+
+    // Source breakdown
+    const srcCounts = {};
+    for (const cat of Object.keys(data)) {
+      for (const it of data[cat]) {
+        srcCounts[it.source] = (srcCounts[it.source] || 0) + 1;
+      }
+    }
+    const sortedSrc = Object.entries(srcCounts).sort((a, b) => b[1] - a[1]);
+    document.getElementById('sourceList').innerHTML = sortedSrc.map(([src, c]) =>
+      `<span class="source-tag">${escapeHtml(src)}<span class="badge">${c}</span></span>`
+    ).join('') || '<div class="empty">データ無し</div>';
+  }
+
+  // ============ BUBBLE CHART ============
+  function renderBubbleChart(keywords) {
+    const container = document.getElementById('bubbleChart');
+    container.innerHTML = '';
+
+    if (keywords.length === 0) {
+      container.innerHTML = '<div class="empty">キーワードが見つかりませんでした（データ蓄積を待っています）</div>';
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const width = Math.max(rect.width, 300);
+    const height = Math.min(Math.max(width * 0.6, 400), 600);
+
+    const data = keywords.map(([word, freq]) => ({ word, freq, value: freq }));
+
+    const pack = d3.pack().size([width - 4, height - 4]).padding(4);
+    const root = d3.hierarchy({ children: data }).sum(d => d.value);
+    pack(root);
+
+    const maxFreq = Math.max(...keywords.map(k => k[1]));
+    const colorForFreq = (f) => {
+      const ratio = f / maxFreq;
+      if (ratio > 0.8) return 'var(--hot1)';
+      if (ratio > 0.6) return 'var(--hot2)';
+      if (ratio > 0.4) return 'var(--hot3)';
+      if (ratio > 0.2) return 'var(--hot4)';
+      return 'var(--hot5)';
+    };
+
+    const svg = d3.select(container).append('svg')
+      .attr('viewBox', `0 0 ${width} ${height}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('width', '100%')
+      .style('height', 'auto');
+
+    // Defs for glow effect
+    const defs = svg.append('defs');
+    const filter = defs.append('filter').attr('id', 'glow');
+    filter.append('feGaussianBlur').attr('stdDeviation', '2').attr('result', 'coloredBlur');
+    const merge = filter.append('feMerge');
+    merge.append('feMergeNode').attr('in', 'coloredBlur');
+    merge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+    const node = svg.selectAll('g.bubble-node')
+      .data(root.leaves())
+      .join('g')
+      .attr('class', 'bubble-node')
+      .attr('transform', d => `translate(${d.x},${d.y})`)
+      .on('click', (ev, d) => showKeywordArticles(d.data.word));
+
+    node.append('circle')
+      .attr('r', d => d.r)
+      .attr('fill', d => colorForFreq(d.data.freq))
+      .attr('fill-opacity', 0.85)
+      .attr('stroke', 'rgba(255,255,255,0.25)')
+      .attr('stroke-width', 1.5);
+
+    node.each(function(d) {
+      const g = d3.select(this);
+      const fontSize = Math.min(Math.max(d.r * 0.38, 11), 24);
+      const word = d.data.word;
+      // 長い単語は2行に分割表示
+      const shouldSplit = word.length > 4 && d.r < 45;
+      const maxLen = Math.max(Math.floor(d.r / fontSize * 2.5), 2);
+      let displayWord = word;
+      if (word.length > maxLen && d.r < 35) {
+        displayWord = word.slice(0, maxLen);
+      }
+      g.append('text')
+        .attr('class', 'bubble-text')
+        .attr('dy', d.r >= 30 ? '-0.1em' : '0.35em')
+        .style('font-size', `${fontSize}px`)
+        .text(displayWord);
+      if (d.r >= 30) {
+        g.append('text')
+          .attr('class', 'bubble-count')
+          .attr('dy', `${fontSize * 0.9}px`)
+          .style('font-size', `${Math.max(fontSize * 0.5, 9)}px`)
+          .text(`×${d.data.freq}`);
+      }
+    });
+  }
+
+  // ============ MODAL ============
+  function showKeywordArticles(keyword) {
+    if (!globalData) return;
+    const all = [];
+    const seen = new Set();
+    for (const cat of Object.keys(globalData)) {
+      for (const it of globalData[cat]) {
+        if (!it.link || seen.has(it.link)) continue;
+        seen.add(it.link);
+        all.push({ ...it, category: cat });
+      }
+    }
+    const matching = all.filter(a =>
+      (a.title || '').includes(keyword) ||
+      (a.description || '').includes(keyword)
+    ).sort((a, b) => (b.pubTime || 0) - (a.pubTime || 0));
+
+    document.getElementById('modalKeyword').textContent = `${keyword} (${matching.length}件)`;
+    const body = document.getElementById('modalBody');
+
+    if (matching.length === 0) {
+      body.innerHTML = '<div class="empty">該当する記事が見つかりませんでした</div>';
+    } else {
+      body.innerHTML = matching.map(a => {
+        const hlTitle = highlight(escapeHtml(a.title), keyword);
+        const hlDesc = a.description ? highlight(escapeHtml(a.description), keyword) : '';
+        return `
+          <div class="modal-article">
+            <a href="${escapeHtml(a.link)}" target="_blank" rel="noopener">
+              <div class="modal-article-title"><span class="article-source">${escapeHtml(a.source)}</span>${hlTitle}</div>
+              ${hlDesc ? `<div class="modal-article-desc">${hlDesc}</div>` : ''}
+              <div class="modal-article-meta">${CAT_LABELS[a.category] || ''} · ${formatRelative(a.pubTime || new Date(a.pubDate||0).getTime())}</div>
+            </a>
+          </div>`;
+      }).join('');
+    }
+    document.getElementById('keywordModal').classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    document.getElementById('keywordModal').classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  function highlight(text, keyword) {
+    if (!keyword) return text;
+    const escKey = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return text.replace(new RegExp(escKey, 'g'), `<mark>${escapeHtml(keyword)}</mark>`);
   }
 
   function formatRelative(t) {
@@ -690,7 +988,20 @@
     return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
 
-  // 起動時に生成
+  // Resize: 再描画
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (globalData) {
+        const allTitles = [].concat(...Object.values(globalData)).map(it => it.title);
+        const allDescs = [].concat(...Object.values(globalData)).map(it => it.description || '');
+        const keywords = extractKeywords(allTitles.concat(allDescs.map(s => s.slice(0, 80))), 40);
+        renderBubbleChart(keywords);
+      }
+    }, 300);
+  });
+
   generateReport();
 </script>
 
