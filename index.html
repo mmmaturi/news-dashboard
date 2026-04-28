@@ -535,8 +535,33 @@
   setInterval(updateDate, 60000);
 
   // ============= RSS フィード取得 =============
-  // rss2json の無料エンドポイントを使用（APIキー不要、レート制限あり）
+  // 主系: allorigins.win（キャッシュなし・直接取得）→ XMLを自前パース
+  // 副系: rss2json（フォールバック、約1時間キャッシュあり）
   const RSS2JSON_ENDPOINT = 'https://api.rss2json.com/v1/api.json?rss_url=';
+
+  function parseRSS(xmlString, source) {
+    try {
+      const xml = new DOMParser().parseFromString(xmlString, 'text/xml');
+      const items = [...xml.getElementsByTagName('item')];
+      return items.map(item => {
+        const tag = (name) => {
+          const els = item.getElementsByTagName(name);
+          return els.length > 0 ? (els[0].textContent || '').trim() : '';
+        };
+        // dc:date（RDF形式のNHK等）もサポート
+        let pubDate = tag('pubDate');
+        if (!pubDate) {
+          const dcDates = item.getElementsByTagNameNS('http://purl.org/dc/elements/1.1/', 'date');
+          if (dcDates.length > 0) pubDate = dcDates[0].textContent.trim();
+        }
+        let link = tag('link');
+        if (!link) link = tag('guid');
+        return { title: tag('title'), link, pubDate, source };
+      }).filter(it => it.title && it.link);
+    } catch (e) {
+      return [];
+    }
+  }
 
   function formatRelativeDate(dateStr) {
     if (!dateStr) return '';
@@ -551,6 +576,20 @@
   }
 
   async function fetchFeed(feedConfig) {
+    // 主系: allorigins経由でRSS XMLを直接取得（キャッシュなし）
+    try {
+      const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(feedConfig.url)}&t=${Date.now()}`;
+      const res = await fetch(proxy, { cache: 'no-store' });
+      if (!res.ok) throw new Error('allorigins HTTP ' + res.status);
+      const data = await res.json();
+      if (!data.contents) throw new Error('allorigins empty contents');
+      const items = parseRSS(data.contents, feedConfig.source);
+      if (items.length > 0) return items;
+      throw new Error('allorigins: no items parsed');
+    } catch (e1) {
+      console.warn(`[${feedConfig.source}] allorigins失敗、rss2jsonにフォールバック:`, e1.message);
+    }
+    // 副系: rss2json（フォールバック）
     try {
       const url = RSS2JSON_ENDPOINT + encodeURIComponent(feedConfig.url);
       const res = await fetch(url);
@@ -563,8 +602,8 @@
         pubDate: item.pubDate,
         source: feedConfig.source
       }));
-    } catch (e) {
-      console.warn(`[${feedConfig.source}] RSS取得失敗:`, e.message);
+    } catch (e2) {
+      console.warn(`[${feedConfig.source}] RSS取得失敗:`, e2.message);
       return [];
     }
   }
@@ -589,7 +628,6 @@
         snaps[today] = { timestamp: now.getTime(), items: {} };
       }
       snaps[today].timestamp = now.getTime();
-      // 既存の今日のデータとマージ（link で重複排除）
       const existing = snaps[today].items[cat] || [];
       const existingLinks = new Set(existing.map(x => x.link));
       const merged = existing.slice();
@@ -606,7 +644,6 @@
         }
       }
       snaps[today].items[cat] = merged;
-      // 8日以上前のスナップショット削除
       const cutoff = now.getTime() - 8 * 24 * 60 * 60 * 1000;
       for (const d of Object.keys(snaps)) {
         if (snaps[d].timestamp < cutoff) delete snaps[d];
@@ -629,18 +666,15 @@
 
     container.innerHTML = '<div class="loading-msg">読み込み中...</div>';
 
-    // 全フィードを並列取得
     const results = await Promise.all(feeds.map(fetchFeed));
     let items = [].concat(...results);
 
-    // 日付でソート（新しい順）
     items.sort((a, b) => {
       const da = new Date(a.pubDate).getTime() || 0;
       const db = new Date(b.pubDate).getTime() || 0;
       return db - da;
     });
 
-    // 週次レポート用に全件を保存（limit 適用前）
     const sectionId = container.closest('section')?.id;
     if (sectionId) saveToSnapshot(sectionId, items);
 
@@ -677,7 +711,6 @@
     const containers = document.querySelectorAll('.headlines[data-feeds]');
     await Promise.all(Array.from(containers).map(loadHeadlines));
 
-    // 最終更新時刻を表示
     const now = new Date();
     const t = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
     document.getElementById('lastUpdate').textContent = `最終更新: ${now.toLocaleDateString('ja-JP')} ${t}`;
@@ -687,13 +720,9 @@
     btn.disabled = false;
   }
 
-  // 起動時に取得
   refreshAll();
-
-  // 1時間ごとに自動更新（開きっぱなしの時用）
   setInterval(refreshAll, 60 * 60 * 1000);
 
-  // タブに戻ってきた時、最後の更新から30分以上経っていれば自動更新
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && Date.now() - lastRefreshTime > 30 * 60 * 1000) {
       refreshAll();
