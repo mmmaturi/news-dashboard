@@ -291,6 +291,7 @@
   <a href="#indices">主要指数</a>
   <a href="#customers">顧客株価</a>
   <a href="#stock-topics">株トピックス</a>
+  <a href="#hot-trends" style="background: #ff6b35; color: #fff; border-color: #ff6b35; font-weight: 600;">🔥 急上昇</a>
   <a href="./weekly-report.html" style="background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600;">📊 週次レポート</a>
 </nav>
 
@@ -489,6 +490,19 @@
       <li><a href="https://diamond.jp/category/market" target="_blank" rel="noopener">ダイヤモンドオンライン<span class="arrow">→</span></a></li>
       <li><a href="https://minkabu.jp/news" target="_blank" rel="noopener">みんかぶ<span class="arrow">→</span></a></li>
     </ul>
+  </section>
+
+  <!-- 急上昇トレンド -->
+  <section id="hot-trends" class="card">
+    <h2 style="border-bottom-color: #ff6b35;"><span class="icon">🔥</span>急上昇トレンド<span class="tag">Googleトレンド × NHK速報</span></h2>
+
+    <div class="section-label">📢 急上昇ワード・速報ニュース（自動取得）</div>
+    <div class="headlines" data-feeds='[
+      {"url": "https://trends.google.co.jp/trending/rss?geo=JP", "source": "Googleトレンド"},
+      {"url": "https://www.nhk.or.jp/rss/news/cat0.xml", "source": "NHK速報"}
+    ]' data-limit="15">
+      <div class="loading-msg">読み込み中...</div>
+    </div>
   </section>
 
   <!-- 世界市場ヒートマップ -->
